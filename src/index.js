@@ -1,103 +1,101 @@
 import { Observable } from "rxjs";
-import L from 'leaflet';
 
-const QUAKE_URL = 'http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojsonp'
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+document.body.appendChild(canvas);
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-function loadJSONP(url){
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.src = url;
-
-  const css = document.createElement("link");
-  css.rel = "stylesheet";
-  css.href = "https://unpkg.com/leaflet@1.3.1/dist/leaflet.css";
-  css.crossOrigin = "";
-  css.type = "text/css";
-
-  
+function paintStars(stars){
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0,0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ffffff';
+  stars.forEach(star=>{
+    ctx.fillRect(star.x, star.y, star.size, star.size);
+  })
 }
 
-const css = document.createElement("link");
-  css.rel = "stylesheet";
-  css.href = "https://unpkg.com/leaflet@1.3.1/dist/leaflet.css";
-  css.crossOrigin = "";
-  css.type = "text/css";
+const SPEED = 40;
+const STAR_NUMBER = 250;
+const StarStream$ = Observable.range(1, STAR_NUMBER)
+  .map(()=>({
+    x: parseInt(Math.random()*canvas.width, 10),
+    y: parseInt(Math.random()* canvas.height, 10),
+    size: Math.random() * 3 + 1
+  }))
+  .toArray()
+  .flatMap(starArray => Observable.interval(SPEED).map(()=>{
+    starArray.forEach(star=>{
+      if(star.y>= canvas.height){
+        star.y = 0; // reset star to the top of the screen
+      }
+      star.y += star.size;
+    });
+    return starArray;
+    }));
 
-const head = document.getElementsByTagName("head")[0];
-  if(head){
-    head.appendChild(css);
-    
-  }
+function drawTriangle(x,y,width,color,direction){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x-width, y);
+  ctx.lineTo(x, direction === 'up' ? y - width : y + width);
+  ctx.lineTo(x + width, y);
+  ctx.lineTo(x - width, y);
+  ctx.fill();
+}
 
-const mapcontainer = document.createElement("div");
-mapcontainer.id = "map";
-mapcontainer.style.height = "680px";
-mapcontainer.style.width = "680px";
-mapcontainer.style.border = "1px solid black"
-document.body.appendChild(mapcontainer);
+function renderScene(actors){
+  paintStars(actors.stars);
+  paintSpaceShip(actors.spaceship.x, actors.spaceship.y);
+  paintEnemies(actors.enemies);
+}
+
+function paintSpaceShip(x,y){
+  drawTriangle(x, y, 20, '#ff0000', 'up');
+}
 
 
-var map = L.map('map').setView([33.858631, -118.279602], 7);
+const HERO_Y = canvas.height - 30;
+const mouseMove = Observable.fromEvent(canvas, 'mousemove');
+const SpaceShip = mouseMove
+    .map(event=> ({
+        x: event.clientX,
+        y: HERO_Y
+    }))
+    .startWith({
+      x: canvas.width / 2,
+      y: HERO_Y
+    })
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-
-const quake$ = Observable.interval(5000)
-  .flatMap(()=>{
-    return loadJSONP({
-      url: QUAKE_URL,
-      callbackName: "eqfeed_callback"
-    }).retry(3);
-  })
-  .flatMap(result => Observable.from(result.response.features))
-  .distinct(quake=> quake.properties.code);
-
-quake$.subscribe(quake=>{
-  console.log('QUAKE', quake);
-  const coords = quake.geometry.coordinates;
-  const size = quake.properties.mag * 10000;
- 
-  L.circle([coords[1],coords[0]], size).addTo(map);
-});
-
-function loadJSONP(settings){
-  const url = settings.url;
-  const callbackName = settings.callbackName;
-
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.src = url;
-
-  window[callbackName] = data => {
-    window[callbackName].data = data;
+const ENEMY_FREQ = 1500;
+const Enemies$ = Observable.interval(ENEMY_FREQ).scan(enemyArray=>{
+  const enemy = {
+    x: parseInt(Math.random() * canvas.width, 10),
+    y: -30
   };
 
-  return Observable.create(observer=>{
-    const handler = e => {
-      const status = e.type ==="error"? 400 : 200;
-      const response = window[callbackName].data;
+  enemyArray.push(enemy);
+  return enemyArray;
+}, []);
 
-      if(status === 200){
-        observer.next({
-          status,
-          responseType: "jsonp",
-          response,
-          originalEvent: e
-        });
-
-        observer.complete();
-      } else { 
-        observer.error({
-          type: "error",
-          status,
-          originalEvent: e
-        });
-      }
-    };
-
-    script.onload = script.onreadystatechanged = script.onerror = handler;
-
-    const head = window.document.getElementsByTagName("head")[0];
-    head.insertBefore(script,head.firstChild);
-
-  });
+function getRandomInt(min, max){
+  return Math.floor(Math.random()*(max-min+1))+min;
 }
+
+function paintEnemies(enemies){
+  enemies.forEach(enemy=>{
+    enemy.y+= 5,
+    enemy.x += getRandomInt(-15,15);
+    drawTriangle(enemy.x, enemy.y, 20, "#00ff00", 'down');
+  })
+}
+
+const Game = Observable.combineLatest(StarStream$, SpaceShip, Enemies$, (
+  stars,
+  spaceship,
+  enemies
+) => ({
+  stars,spaceship, enemies
+}));
+
+Game.subscribe(renderScene);
