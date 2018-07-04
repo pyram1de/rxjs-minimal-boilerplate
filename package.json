@@ -18,7 +18,7 @@
     "webpack-dev-server": "^1.16.5"
   },
   "scripts": {
-    "start": "webpack --config webpack.config.js",
+    "start": "webpack --config webpack.config.js | webpack-dev-server",
     "devserver": "webpack-dev-server"
   },
   "dependencies": {
