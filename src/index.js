@@ -32,9 +32,6 @@ function Map(){
 }
 
 var map = new Map();
-/*
-
-*/
 
 function initialize(){
   const quake$ = Observable.timer(100,5000)
@@ -45,7 +42,7 @@ function initialize(){
       }).retry(3);
     })
     .flatMap(result => Observable.from(result.response.features))
-    .distinct(quake=> quake.properties.code);
+    .distinct(quake=> quake.properties.code).share();
 
   quake$.subscribe(quake=>{
     console.log('tick');
@@ -54,9 +51,39 @@ function initialize(){
   
     L.circle([coords[1],coords[0]], size).addTo(map);
   });
+
+  
+  const table = document.getElementById("quakes_info");
+  quake$.pluck("properties").map(function(props){
+    return makeRow(props);
+  }).subscribe(x=>{
+    console.log('x', x);
+    table.appendChild(x);
+  });
 }
+
+function makeRow(props){
+  const row = document.createElement("tr");
+  row.id = props.net + props.code;
+
+  const time = new Date(props.time).toString();
+
+  [props.place, props.mag, time].forEach(text => {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+    row.appendChild(cell);
+  });
+
+  return row;
+}
+
+
 
 Observable.fromEvent(document,'DOMContentLoaded').subscribe(x=>{
   console.log('dom document loaded');
-  initialize()
+  initialize();
+
+
 });
+
+
