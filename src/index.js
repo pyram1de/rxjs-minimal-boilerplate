@@ -61,11 +61,9 @@ const identity = x => x;
 
 function isHovering(element){
   const over = Observable.fromEvent(element, "mouseover").map(x=>{
-    console.log('mouse over', x);
     return true;
   });
   const out = Observable.fromEvent(element, "mouseout").map(x=>{
-    console.log('mouse out', x);
     return false;
   });
   return over.merge(out);
@@ -77,7 +75,6 @@ function isHovering(element){
     return Observable
       .fromEvent(table, event)
       .filter(({target})=> {
-        console.log('target', target);
         return target.tagName ==="TD" && target.parentNode.id.length;
       })
       .pluck("target", "parentNode")
@@ -118,10 +115,7 @@ function isHovering(element){
 
 
 Observable.fromEvent(document,'DOMContentLoaded').subscribe(x=>{
-  console.log('dom document loaded');
   initialize();
-
-
 });
 
 
