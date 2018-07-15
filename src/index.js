@@ -1,7 +1,7 @@
 import { Observable } from "rxjs";
 import L from 'leaflet';
 import { loadJSONP } from './jsonp';
-import { appendToTag, addCss, addRawHtml } from './HTMLhelpers';
+import { appendToTag, addCss, addRawHtml, makeRow } from './HTMLhelpers';
 
 const QUAKE_URL = 'http://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojsonp'
 
@@ -44,38 +44,76 @@ function initialize(){
     .flatMap(result => Observable.from(result.response.features))
     .distinct(quake=> quake.properties.code).share();
 
+const codeLayers = {};
+const quakeLayer = L.layerGroup([]).addTo(map);
+
   quake$.subscribe(quake=>{
-    console.log('tick');
     const coords = quake.geometry.coordinates;
     const size = quake.properties.mag * 10000;
-  
+    const circle = L.circle([coords[1],coords[0]], size).addTo(map);
+
     L.circle([coords[1],coords[0]], size).addTo(map);
+    quakeLayer.addLayer(circle);
+    codeLayers[quake.id] = quakeLayer.getLayerId(circle);
   });
 
+const identity = x => x;
+
+function isHovering(element){
+  const over = Observable.fromEvent(element, "mouseover").map(x=>{
+    console.log('mouse over', x);
+    return true;
+  });
+  const out = Observable.fromEvent(element, "mouseout").map(x=>{
+    console.log('mouse out', x);
+    return false;
+  });
+  return over.merge(out);
+}
   
   const table = document.getElementById("quakes_info");
-  quake$.pluck("properties").map(function(props){
+
+  function getRowFromEvent(event) {
+    return Observable
+      .fromEvent(table, event)
+      .filter(({target})=> {
+        console.log('target', target);
+        return target.tagName ==="TD" && target.parentNode.id.length;
+      })
+      .pluck("target", "parentNode")
+      .distinctUntilChanged();
+  }
+
+  getRowFromEvent("mouseover").pairwise().subscribe(rows=>{
+    const prevCircle = quakeLayer.getLayer(codeLayers[rows[0].id]);
+    const currCircle = quakeLayer.getLayer(codeLayers[rows[1].id]);
+    prevCircle.setStyle({color: '#0000ff'});
+    currCircle.setStyle({color:'#ff0000'});
+  });
+
+  getRowFromEvent("click").subscribe(row=>{
+    const circle = quakeLayer.getLayer(codeLayers[row.id]);
+    map.panTo(circle.getLatLng());
+  });
+
+  quake$.pluck("properties")
+  .map(function(props){
     return makeRow(props);
-  }).subscribe(x=>{
-    console.log('x', x);
-    table.appendChild(x);
+  })
+  .bufferTime(500)
+  .filter(rows=>rows.length>0)
+  .map(rows=>{
+    const fragment = document.createDocumentFragment();
+    rows.forEach(row=>{
+      fragment.appendChild(row);
+    });
+    return fragment;
+  }) .subscribe(fragment=>{
+    table.appendChild(fragment);
   });
 }
 
-function makeRow(props){
-  const row = document.createElement("tr");
-  row.id = props.net + props.code;
 
-  const time = new Date(props.time).toString();
-
-  [props.place, props.mag, time].forEach(text => {
-    const cell = document.createElement("td");
-    cell.textContent = text;
-    row.appendChild(cell);
-  });
-
-  return row;
-}
 
 
 

@@ -17,3 +17,18 @@ export function addCss(url){
 export function addRawHtml(part, html){
     document.getElementsByTagName(part)[0].innerHTML+=html;
 }
+
+export function makeRow(props){
+    const row = document.createElement("tr");
+    row.id = props.net + props.code;
+  
+    const time = new Date(props.time).toString();
+  
+    [props.place, props.mag, time].forEach(text => {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      row.appendChild(cell);
+    });
+  
+    return row;
+  }
