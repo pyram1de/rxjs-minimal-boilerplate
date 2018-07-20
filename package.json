@@ -19,6 +19,8 @@
   },
   "scripts": {
     "start": "webpack --config webpack.config.js",
+    "build": "webpack --config webpack.config.js",
+    "play": "npm run build && npm run devserver",
     "devserver": "webpack-dev-server"
   },
   "dependencies": {
